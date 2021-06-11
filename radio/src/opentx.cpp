@@ -1008,7 +1008,7 @@ void checkAll()
 
   checkSwitches();
   checkFailsafe();
-  checkRSSIAlarmsDisabled();
+  //checkRSSIAlarmsDisabled();
 
 #if defined(SDCARD) && !defined(RADIOMASTER_RTF_RELEASE)
   checkSDVersion();
