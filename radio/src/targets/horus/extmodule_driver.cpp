@@ -167,7 +167,7 @@ void extmoduleSerialStart()
   EXTMODULE_TIMER->EGR = 1; // Restart
   EXTMODULE_TIMER->CCMR2 = TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0;
 #else
-  EXTMODULE_TIMER->CCER = TIM_CCER_CC1E | (inverted ? 0 : TIM_CCER_CC1P);
+  EXTMODULE_TIMER->CCER = TIM_CCER_CC1E | TIM_CCER_CC1P;
   EXTMODULE_TIMER->BDTR = TIM_BDTR_MOE; // Enable outputs
   EXTMODULE_TIMER->CCR1 = 0;
   EXTMODULE_TIMER->CCMR1 = TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_0; // Force O/P high
@@ -325,19 +325,21 @@ void extmoduleSendNextFrame()
 #if defined(EXTMODULE_USART) && defined(EXTMODULE_TX_INVERT_GPIO)
       extmoduleSendBuffer(extmodulePulsesData.afhds3.getData(), extmodulePulsesData.afhds3.getSize());
 #else
+      if (EXTMODULE_TIMER_DMA_STREAM->CR & DMA_SxCR_EN)
+        return;
+
       const uint16_t* dataPtr = extmodulePulsesData.afhds3.getData();
       uint32_t dataSize = extmodulePulsesData.afhds3.getSize();
-      //Peripheral data size
-      //we know that afdhds3 uses 2 byte values!
-      uint32_t dmaSize = (EXTMODULE_TIMER_DMA_SIZE & (DMA_SxCR_PSIZE_0 | DMA_SxCR_PSIZE_1)) | DMA_SxCR_MSIZE_0;
-
-      EXTMODULE_TIMER->CCR2 = dataPtr[dataSize -1] - 4000; // 2mS in advance
       EXTMODULE_TIMER_DMA_STREAM->CR &= ~DMA_SxCR_EN; // Disable DMA
-      EXTMODULE_TIMER_DMA_STREAM->CR |= EXTMODULE_TIMER_DMA_CHANNEL | DMA_SxCR_DIR_0 | DMA_SxCR_MINC | dmaSize | DMA_SxCR_PL_0 | DMA_SxCR_PL_1;
+      EXTMODULE_TIMER_DMA_STREAM->CR |= EXTMODULE_TIMER_DMA_CHANNEL | DMA_SxCR_DIR_0 | DMA_SxCR_MINC | DMA_SxCR_PSIZE_0 | DMA_SxCR_MSIZE_0 | DMA_SxCR_PL_0 | DMA_SxCR_PL_1;
       EXTMODULE_TIMER_DMA_STREAM->PAR = CONVERT_PTR_UINT(&EXTMODULE_TIMER->ARR);
       EXTMODULE_TIMER_DMA_STREAM->M0AR = CONVERT_PTR_UINT(dataPtr);
-      EXTMODULE_TIMER_DMA_STREAM->NDTR = (uint32_t)dataSize;
+      EXTMODULE_TIMER_DMA_STREAM->NDTR = dataSize;
       EXTMODULE_TIMER_DMA_STREAM->CR |= DMA_SxCR_EN | DMA_SxCR_TCIE; // Enable DMA
+
+      // re-init timer
+      EXTMODULE_TIMER->EGR = TIM_PSCReloadMode_Immediate;
+      EXTMODULE_TIMER->CR1 |= TIM_CR1_CEN;
 #endif
       }
       break;
